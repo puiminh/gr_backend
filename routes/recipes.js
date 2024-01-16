@@ -42,9 +42,29 @@ router.delete("/:id", async function (req, res, next) {
   }
 });
 
+router.get("/filter", async function (req, res, next) {
+  try {
+    const ingredientIds = req.query.ingredientIds.split(',').map(Number);
+    res.json(await recipes.filterRecipesByIngredients(ingredientIds));
+  } catch (err) {
+    console.error(`Error while filtering recipes by ingredients `, err.message);
+    next(err);
+  }
+});
+
 router.get("/:id", async function (req, res, next) {
   try {
-    res.json(await recipes.search(req.params.id));
+    res.json(await recipes.get(req.params.id));
+  } catch (err) {
+    console.error(`Error while searching recipes `, err.message);
+    next(err);
+  }
+});
+
+// Detail
+router.get("/detail/:id", async function (req, res, next) {
+  try {
+    res.json(await recipes.getRecipeDetail(req.params.id));
   } catch (err) {
     console.error(`Error while searching recipes `, err.message);
     next(err);

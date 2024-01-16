@@ -45,7 +45,7 @@ async function create(data) {
 }
 
 async function get(id) {
-  const query = `GET * FROM ${table} WHERE id=${id}`
+  const query = `SELECT * FROM ${table} WHERE id=${id}`
   const result = await db.query(
     query
   );

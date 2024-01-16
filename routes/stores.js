@@ -42,12 +42,36 @@ router.delete("/:id", async function (req, res, next) {
   }
 });
 
-router.get("/:id", async function (req, res, next) {
+router.get("/all", async function (req, res, next) {
   try {
-    res.json(await stores.search(req.params.id));
+    res.json(await stores.getAllStores());
   } catch (err) {
     console.error(`Error while searching stores `, err.message);
     next(err);
   }
 });
+
+router.get("/detail/:id", async function (req, res, next) {
+  try {
+    res.json(await stores.getStoreDetail(req.params.id));
+  } catch (err) {
+    console.error(`Error while searching stores `, err.message);
+    next(err);
+  }
+});
+
+router.get("/:id", async function (req, res, next) {
+  try {
+    res.json(await stores.get(req.params.id));
+  } catch (err) {
+    console.error(`Error while searching stores `, err.message);
+    next(err);
+  }
+});
+
+
+
+
+
+
 module.exports = router;
