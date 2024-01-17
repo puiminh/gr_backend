@@ -3,7 +3,7 @@ const helper = require("../helper");
 const config = require("../config");
 
 const table = 'stores';
-const tableAttributes = ['lat','lng','type','name','description','address','owner_id']
+const tableAttributes = ['lat','lng','type','name','description','address','owner']
 
 async function getMultiple(page = 1) {
   const offset = helper.getOffset(page, config.listPerPage);
@@ -107,7 +107,7 @@ async function getStoreDetail(storeId) {
     const avgRating = ratingResult[0].avgRating || 0;
 
     // Truy vấn để lấy thông tin về chủ sở hữu
-    const ownerQuery = `SELECT * FROM users WHERE id = ${store.owner_id}`;
+    const ownerQuery = `SELECT * FROM users WHERE id = ${store.owner}`;
     const ownerResult = await db.query(ownerQuery);
     const owner = ownerResult.length > 0 ? ownerResult[0] : null;
 
@@ -162,7 +162,7 @@ async function getStoreDetail(storeId) {
         address: store.address,
         created_at: store.created_at,
         updated_at: store.updated_at,
-        rating: avgRating,
+        rating: Number(avgRating).toFixed(1),
         owner: owner,
         ingredients: ingredients,
         reviews: reviews
@@ -211,7 +211,7 @@ async function getAllStores() {
       address: store.address,
       created_at: store.created_at,
       updated_at: store.updated_at,
-      avgRating: store.avgRating || 0,
+      avgRating: Number(store.avgRating).toFixed(1) || 0,
       reviewsCount: reviewsCountMap.get(store.id) || 0
     }));
 
@@ -219,6 +219,66 @@ async function getAllStores() {
   } catch (error) {
     throw error;
   }
+}
+
+async function filterStoresByIngredients(ingredientIds) {
+  try {
+    // Chuyển đổi mảng ingredientIds thành một chuỗi để sử dụng trong câu truy vấn SQL
+    const ingredientIdsString = ingredientIds.join(',');
+
+    // Câu truy vấn SQL
+    const query = `
+      SELECT 
+        stores.*, 
+        AVG(store_reviews.rating) AS avgRating
+      FROM stores
+      LEFT JOIN store_reviews ON stores.id = store_reviews.store_id
+      WHERE stores.id IN (
+        SELECT DISTINCT s.id
+        FROM stores s
+        JOIN store_ingredients si ON s.id = si.store_id
+        WHERE si.ingredient_id IN (${ingredientIdsString})
+        GROUP BY s.id
+        HAVING COUNT(DISTINCT si.ingredient_id) = ${ingredientIds.length}
+      )
+      GROUP BY stores.id
+    `;
+
+    // Thực hiện truy vấn
+    const result = await db.query(query);
+
+    // Xử lý kết quả
+    const filteredStores = await Promise.all(result.map(async store => {
+      const ingredientsQuery = `
+        SELECT i.id, i.name, si.*
+        FROM store_ingredients si
+        JOIN ingredients i ON si.ingredient_id = i.id
+        WHERE si.store_id = ${store.id}
+          AND si.ingredient_id IN (${ingredientIdsString})
+      `;
+      const ingredientsResult = await db.query(ingredientsQuery);
+
+      return {
+        id: store.id,
+        name: store.name,
+        avgRating: store.avgRating || 0,
+        ingredients: ingredientsResult
+      };
+    }));
+
+    return filteredStores;
+  } catch (error) {
+    throw error;
+  }
+}
+
+async function getStoresFromAuthor(id) {
+  const query = `SELECT * FROM ${table} WHERE owner=${id}`
+  const result = await db.query(
+    query
+  );
+
+  return { stores: result}
 }
 
 
@@ -230,4 +290,6 @@ module.exports = {
   remove,
   getStoreDetail,
   getAllStores,
+  filterStoresByIngredients,
+  getStoresFromAuthor,
 };

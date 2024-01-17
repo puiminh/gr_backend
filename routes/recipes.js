@@ -12,10 +12,20 @@ router.get("/", async function (req, res, next) {
   }
 });
 
+/* GET recipes from author. */
+router.get("/author/:id", async function (req, res, next) {
+  try {
+    res.json(await recipes.getRecipesFromAuthor(req.params.id));
+  } catch (err) {
+    console.error(`Error while getting recipes `, err.message);
+    next(err);
+  }
+});
+
 /* POST recipe */
 router.post("/", async function (req, res, next) {
   try {
-    res.json(await recipes.create(req.body));
+    res.json(await recipes.createRecipe(req.body));
   } catch (err) {
     console.error(`Error while creating recipe`, err.message);
     next(err);
@@ -25,7 +35,7 @@ router.post("/", async function (req, res, next) {
 /* PUT recipe */
 router.put("/:id", async function (req, res, next) {
   try {
-    res.json(await recipes.update(req.params.id, req.body));
+    res.json(await recipes.updateRecipe(req.params.id, req.body));
   } catch (err) {
     console.error(`Error while updating recipe`, err.message);
     next(err);
@@ -42,12 +52,12 @@ router.delete("/:id", async function (req, res, next) {
   }
 });
 
-router.get("/filter", async function (req, res, next) {
+router.get("/match", async function (req, res, next) {
   try {
     const ingredientIds = req.query.ingredientIds.split(',').map(Number);
-    res.json(await recipes.filterRecipesByIngredients(ingredientIds));
+    res.json(await recipes.getRecipesWithMissingIngredients(ingredientIds));
   } catch (err) {
-    console.error(`Error while filtering recipes by ingredients `, err.message);
+    console.error(`Error while match recipes by ingredients `, err.message);
     next(err);
   }
 });

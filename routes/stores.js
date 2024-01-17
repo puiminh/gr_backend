@@ -12,6 +12,16 @@ router.get("/", async function (req, res, next) {
   }
 });
 
+/* GET stores from author */
+router.get("/author/:id", async function (req, res, next) {
+  try {
+    res.json(await stores.getStoresFromAuthor(req.params.id));
+  } catch (err) {
+    console.error(`Error while searching stores `, err.message);
+    next(err);
+  }
+});
+
 /* POST store */
 router.post("/", async function (req, res, next) {
   try {
@@ -47,6 +57,16 @@ router.get("/all", async function (req, res, next) {
     res.json(await stores.getAllStores());
   } catch (err) {
     console.error(`Error while searching stores `, err.message);
+    next(err);
+  }
+});
+
+router.get("/filter", async function (req, res, next) {
+  try {
+    const ingredientIds = req.query.ingredientIds.split(',').map(Number);
+    res.json(await stores.filterStoresByIngredients(ingredientIds));
+  } catch (err) {
+    console.error(`Error while filter stores by ingredients `, err.message);
     next(err);
   }
 });

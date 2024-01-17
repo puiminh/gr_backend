@@ -86,7 +86,7 @@ async function remove(id) {
     message = "data deleted successfully";
   }
 
-  return { message };
+  return { success: true, message: message };
 }
 
 async function getRecipeDetail(recipeId) {
@@ -107,25 +107,20 @@ async function getRecipeDetail(recipeId) {
     const avgRating = ratingResult[0].avgRating || 0;
 
     // Truy vấn để lấy thông tin về tác giả
-    const authorQuery = `SELECT users.first_name, users.last_name FROM users INNER JOIN recipe_reviews ON users.id = recipe_reviews.user_id WHERE recipe_reviews.recipe_id = ${recipeId} LIMIT 1`;
+    const authorQuery = `SELECT users.first_name, users.last_name FROM users WHERE users.id = ${recipe.author} LIMIT 1`;
     const authorResult = await db.query(authorQuery);
     const authorName = authorResult.length > 0 ? `${authorResult[0].first_name} ${authorResult[0].last_name}` : '';
 
     // Truy vấn để lấy thông tin về nguyên liệu
     const ingredientsQuery = `
-      SELECT ingredients.*, recipe_ingredients.description AS ingredient_description
+      SELECT ingredients.*, recipe_ingredients.*
       FROM ingredients
       INNER JOIN recipe_ingredients ON ingredients.id = recipe_ingredients.ingredient_id
       WHERE recipe_ingredients.recipe_id = ${recipeId}
     `;
     const ingredientsResult = await db.query(ingredientsQuery);
     const ingredients = ingredientsResult.map(ingredient => ({
-      id: ingredient.id,
-      name: ingredient.name,
-      type: ingredient.type,
-      image: ingredient.image,
-      description: ingredient.description,
-      ingredient_description: ingredient.ingredient_description
+      ...ingredient
     }));
 
     // Truy vấn để lấy thông tin về các bước thực hiện
@@ -165,10 +160,11 @@ async function getRecipeDetail(recipeId) {
         name: recipe.name,
         video: recipe.video,
         image: recipe.image,
+        description: recipe.description,
         created_at: recipe.created_at,
         updated_at: recipe.updated_at,
         author: recipe.author, // Thêm thông tin về tác giả
-        rating: avgRating,
+        rating: Number(avgRating).toFixed(1),
         author_name: authorName,
         ingredients: ingredients,
         reviews: reviews,
@@ -182,62 +178,188 @@ async function getRecipeDetail(recipeId) {
   }
 }
 
-async function filterRecipesByIngredients(ingredientIds) {
+async function getRecipesWithMissingIngredients(ingredientIds) {
   try {
-    // Truy vấn để lọc các recipe thoả mãn điều kiện
-    const filterQuery = `
-    SELECT 
-      recipe_bookmarks.user_id, 
-      recipe_bookmarks.recipe_id, 
-      recipes.*, 
-      AVG(recipe_reviews.rating) AS avgRating
-    FROM 
-      recipe_ingredients
-      JOIN recipes ON recipe_ingredients.recipe_id = recipes.id
+    // Lấy danh sách recipe với thông tin rating trung bình
+    const recipesQuery = `
+      SELECT recipes.*, AVG(recipe_reviews.rating) AS avgRating
+      FROM recipes
       LEFT JOIN recipe_reviews ON recipes.id = recipe_reviews.recipe_id
-      JOIN recipe_bookmarks ON recipes.id = recipe_bookmarks.recipe_id
-    WHERE 
-      recipe_ingredients.ingredient_id IN (${ingredientIds.join(',')})
-    GROUP BY 
-      recipe_bookmarks.user_id, 
-      recipe_bookmarks.recipe_id, 
-      recipes.id, 
-      recipes.name, 
-      recipes.video, 
-      recipes.image, 
-      recipes.created_at, 
-      recipes.updated_at;
+      GROUP BY recipes.id
     `;
-    const filteredResult = await db.query(filterQuery);
+    const recipesResult = await db.query(recipesQuery);
 
-    // Xử lý kết quả để tạo mảng chứa thông tin recipe và rating trung bình
-    const filteredRecipes = filteredResult.map(recipe => ({
-      user_id: recipe.user_id,
-      recipe_id: recipe.recipe_id,
-      recipe: {
+    // Lấy danh sách nguyên liệu còn thiếu và số lượng còn thiếu cho từng recipe
+    const missingIngredientsQuery = `
+      SELECT DISTINCT recipe_id, COUNT(ingredients.id) AS missingCount, GROUP_CONCAT(ingredients.name) AS missingIngredients
+      FROM recipe_ingredients
+      JOIN ingredients ON recipe_ingredients.ingredient_id = ingredients.id
+      WHERE ingredient_id NOT IN (${ingredientIds.join(',')})
+      GROUP BY recipe_id
+    `;
+    const missingIngredientsResult = await db.query(missingIngredientsQuery);
+
+    // Tạo một đối tượng Map để lưu trữ thông tin về nguyên liệu còn thiếu cho từng recipe
+    const missingIngredientsMap = new Map();
+    missingIngredientsResult.forEach(row => {
+      missingIngredientsMap.set(row.recipe_id, {
+        missingCount: row.missingCount,
+        missingIngredients: row.missingIngredients.split(','),
+      });
+    });
+
+    // Xử lý kết quả để tạo mảng chứa thông tin các công thức
+    const recipesWithMissingIngredients = recipesResult.map(recipe => {
+      const missingInfo = missingIngredientsMap.get(recipe.id) || { missingCount: 0, missingIngredients: [] };
+
+      return {
         id: recipe.id,
         name: recipe.name,
         video: recipe.video,
         image: recipe.image,
         created_at: recipe.created_at,
         updated_at: recipe.updated_at,
-        avgRating: recipe.avgRating || 0
-        // Thêm các trường khác của recipe nếu cần
-      }
-    }));
+        avgRating: Number(recipe.avgRating).toFixed(1) || 0,
+        missingIngredients: missingInfo.missingIngredients,
+        missingAmount: missingInfo.missingIngredients.length,
+      };
+    });
 
-    return {filteredRecipes: filteredRecipes};
+    // Sắp xếp theo thứ tự số lượng missingIngredients tăng dần
+    recipesWithMissingIngredients.sort((a, b) => a.missingAmount - b.missingAmount);
+
+    return { recipes: recipesWithMissingIngredients};
   } catch (error) {
     throw error;
   }
 }
 
+async function createRecipe(data) {
+  try {
+    // Tạo bản ghi Recipe
+    const recipeQuery = `
+      INSERT INTO recipes (name, video, description, image, author)
+      VALUES (?, ?, ?, ?, ?);
+    `;
+    const recipeValues = [
+      data.name,
+      data.video,
+      data.description,
+      data.image,
+      data.author,
+    ].map(value => (value !== undefined ? value : null)); // Thay thế undefined bằng null
+    const recipeResult = await db.query(recipeQuery, recipeValues);
+    const recipeId = recipeResult.insertId;
+
+    // Tạo bản ghi Steps
+    if (data.steps && data.steps.length > 0) {
+      const stepsQuery = `
+        INSERT INTO steps (recipe_id, \`order\`, time, description)
+        VALUES (?, ?, ?, ?);
+      `;
+      await Promise.all(data.steps.map(async (step) => {
+        const stepValues = [recipeId, step.order, step.time, step.description];
+        await db.query(stepsQuery, stepValues);
+      }));
+    }
+
+    // Liên kết Recipe với Ingredients thông qua bảng trung gian
+    if (data.ingredients && data.ingredients.length > 0) {
+      const recipeIngredientsQuery = `
+        INSERT INTO recipe_ingredients (recipe_id, ingredient_id, amount)
+        VALUES (?, ?, ?);
+      `;
+      await Promise.all(data.ingredients.map(async (ingredient) => {
+        const ingredientValues = [recipeId, ingredient.id, ingredient.amount];
+        await db.query(recipeIngredientsQuery, ingredientValues);
+      }));
+    }
+
+    return { success: true, recipeId };
+  } catch (error) {
+    console.error('Error while creating recipe:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+async function updateRecipe(recipeId, data) {
+  try {
+    // Cập nhật bản ghi Recipe
+    const updateRecipeQuery = `
+      UPDATE recipes
+      SET name = ?, video = ?, description = ?, image = ?, author = ?
+      WHERE id = ?;
+    `;
+    const updateRecipeValues = [
+      data.name,
+      data.video,
+      data.description,
+      data.image,
+      data.author,
+      recipeId,
+    ].map(value => (value !== undefined ? value : null)); // Thay thế undefined bằng null
+    await db.query(updateRecipeQuery, updateRecipeValues);
+
+    // Xoá bản ghi Steps và cập nhật lại
+    const deleteStepsQuery = `
+      DELETE FROM steps WHERE recipe_id = ?;
+    `;
+    await db.query(deleteStepsQuery, [recipeId]);
+
+    if (data.steps && data.steps.length > 0) {
+      const insertStepsQuery = `
+        INSERT INTO steps (recipe_id, \`order\`, time, description)
+        VALUES (?, ?, ?, ?);
+      `;
+      await Promise.all(data.steps.map(async (step) => {
+        const stepValues = [recipeId, step.order, step.time, step.description];
+        await db.query(insertStepsQuery, stepValues);
+      }));
+    }
+
+    // Xoá bản ghi RecipeIngredients và cập nhật lại
+    const deleteRecipeIngredientsQuery = `
+      DELETE FROM recipe_ingredients WHERE recipe_id = ?;
+    `;
+    await db.query(deleteRecipeIngredientsQuery, [recipeId]);
+
+    if (data.ingredients && data.ingredients.length > 0) {
+      const insertRecipeIngredientsQuery = `
+        INSERT INTO recipe_ingredients (recipe_id, ingredient_id, amount)
+        VALUES (?, ?, ?);
+      `;
+      await Promise.all(data.ingredients.map(async (ingredient) => {
+        const ingredientValues = [recipeId, ingredient.id, ingredient.amount];
+        await db.query(insertRecipeIngredientsQuery, ingredientValues);
+      }));
+    }
+
+    return { success: true, recipeId };
+  } catch (error) {
+    console.error('Error while updating recipe:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+async function getRecipesFromAuthor(id) {
+  const query = `SELECT * FROM ${table} WHERE author=${id}`
+  const result = await db.query(
+    query
+  );
+
+  return { recipes: result}
+}
+
+
 module.exports = {
   getMultiple,
   get,
   create,
+  createRecipe,
   update,
+  updateRecipe,
   remove,
   getRecipeDetail,
-  filterRecipesByIngredients,
+  getRecipesWithMissingIngredients,
+  getRecipesFromAuthor,
 };
