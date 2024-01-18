@@ -80,7 +80,7 @@ async function get(id) {
 }
 
 async function update(id, data) {
-  const attributes = tableAttributes;
+  const attributes = ['username','first_name','last_name','email', 'avatar'];
   const attributeAssignments = attributes.map(attr => `${attr}=${typeof data[attr] === 'string' ? `'${data[attr]}'` : data[attr]}`).join(', ');
 
 
@@ -92,12 +92,14 @@ async function update(id, data) {
   );
 
   let message = "Error in updating data";
+  let success = false;
 
   if (result.affectedRows) {
     message = "data updated successfully";
+    success = true;
   }
 
-  return { message };
+  return { message, success };
 }
 
 async function remove(id) {

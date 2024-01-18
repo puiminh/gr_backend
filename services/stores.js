@@ -119,16 +119,7 @@ async function getStoreDetail(storeId) {
       WHERE store_ingredients.store_id = ${storeId}
     `;
     const ingredientsResult = await db.query(ingredientsQuery);
-    const ingredients = ingredientsResult.map(ingredient => ({
-      id: ingredient.id,
-      name: ingredient.name,
-      type: ingredient.type,
-      image: ingredient.image,
-      description: ingredient.description,
-      price: ingredient.price,
-      price_desc: ingredient.price_desc,
-      ingredient_description: ingredient.ingredient_description
-    }));
+    const ingredients = ingredientsResult.map(ingredient => ingredient);
 
     // Truy vấn để lấy thông tin về các đánh giá
     const reviewsQuery = `
@@ -153,15 +144,7 @@ async function getStoreDetail(storeId) {
     // Tạo đối tượng kết quả
     const storeDetails = {
       store: {
-        id: store.id,
-        lat: store.lat,
-        lng: store.lng,
-        type: store.type,
-        name: store.name,
-        description: store.description,
-        address: store.address,
-        created_at: store.created_at,
-        updated_at: store.updated_at,
+        ...store,
         rating: Number(avgRating).toFixed(1),
         owner: owner,
         ingredients: ingredients,
@@ -281,12 +264,100 @@ async function getStoresFromAuthor(id) {
   return { stores: result}
 }
 
+async function createStore(data) {
+  try {
+    // Tạo bản ghi Store
+    const storeQuery = `
+      INSERT INTO stores (name, address, lat, lng, type, description, owner, image)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+    `;
+    const storeValues = [
+      data.name,
+      data.address,
+      data.lat,
+      data.lng,
+      data.type,
+      data.description,
+      data.owner,
+      data.image,
+    ];
+    const storeResult = await db.query(storeQuery, storeValues);
+    const storeId = storeResult.insertId;
+
+    // Liên kết Store với Ingredients thông qua bảng trung gian store_ingredients
+    if (data.ingredients && data.ingredients.length > 0) {
+      const storeIngredientsQuery = `
+        INSERT INTO store_ingredients (store_id, ingredient_id, price)
+        VALUES (?, ?, ?);
+      `;
+      await Promise.all(data.ingredients.map(async (ingredient) => {
+        const ingredientValues = [storeId, ingredient.id, ingredient.price];
+        await db.query(storeIngredientsQuery, ingredientValues);
+      }));
+    }
+
+    return { success: true, storeId };
+  } catch (error) {
+    console.error('Error while creating store:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+async function updateStore(storeId, data) {
+  try {
+    // Cập nhật thông tin cơ bản của Store
+    const updateStoreQuery = `
+      UPDATE stores
+      SET name = ?, address = ?, lat = ?, lng = ?, type = ?, description = ?, owner = ?, image = ?
+      WHERE id = ?;
+    `;
+    const updateStoreValues = [
+      data.name,
+      data.address,
+      data.lat,
+      data.lng,
+      data.type,
+      data.description,
+      data.owner,
+      data.image,
+      storeId,
+    ];
+    await db.query(updateStoreQuery, updateStoreValues);
+
+    // Xóa tất cả liên kết của Store với các Ingredients
+    const deleteStoreIngredientsQuery = `
+      DELETE FROM store_ingredients
+      WHERE store_id = ?;
+    `;
+    await db.query(deleteStoreIngredientsQuery, [storeId]);
+
+    // Liên kết lại Store với Ingredients thông qua bảng trung gian store_ingredients
+    if (data.ingredients && data.ingredients.length > 0) {
+      const storeIngredientsQuery = `
+        INSERT INTO store_ingredients (store_id, ingredient_id, price)
+        VALUES (?, ?, ?);
+      `;
+      await Promise.all(data.ingredients.map(async (ingredient) => {
+        const ingredientValues = [storeId, ingredient.id, ingredient.price];
+        await db.query(storeIngredientsQuery, ingredientValues);
+      }));
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error while updating store:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
 
 module.exports = {
   getMultiple,
   get,
   create,
+  createStore,
   update,
+  updateStore,
   remove,
   getStoreDetail,
   getAllStores,

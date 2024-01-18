@@ -7,18 +7,24 @@ const tableAttributes = ['name','video','image']
 
 async function getMultiple(page = 1) {
   const offset = helper.getOffset(page, config.listPerPage);
-  const query = `SELECT * FROM ${table} LIMIT ${offset},${config.listPerPage}`
+
+  // Sử dụng LEFT JOIN để kết hợp với bảng recipe_reviews để tính trung bình rating
+  const query = `
+    SELECT recipes.*, ROUND(AVG(recipe_reviews.rating), 1) AS rating
+    FROM ${table}
+    LEFT JOIN recipe_reviews ON recipes.id = recipe_reviews.recipe_id
+    GROUP BY recipes.id
+    LIMIT ${offset},${config.listPerPage}
+  `;
   
-  const rows = await db.query(
-    query
-  );
+  const rows = await db.query(query);
   
   const data = helper.emptyOrRows(rows);
   const meta = { page };
 
   return {
-    data,
-    meta
+    recipes: data,
+    meta: meta
   };
 }
 
@@ -219,7 +225,7 @@ async function getRecipesWithMissingIngredients(ingredientIds) {
         image: recipe.image,
         created_at: recipe.created_at,
         updated_at: recipe.updated_at,
-        avgRating: Number(recipe.avgRating).toFixed(1) || 0,
+        rating: Number(recipe.avgRating).toFixed(1) || 0,
         missingIngredients: missingInfo.missingIngredients,
         missingAmount: missingInfo.missingIngredients.length,
       };

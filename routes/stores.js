@@ -25,7 +25,7 @@ router.get("/author/:id", async function (req, res, next) {
 /* POST store */
 router.post("/", async function (req, res, next) {
   try {
-    res.json(await stores.create(req.body));
+    res.json(await stores.createStore(req.body));
   } catch (err) {
     console.error(`Error while creating store`, err.message);
     next(err);
@@ -35,7 +35,7 @@ router.post("/", async function (req, res, next) {
 /* PUT store */
 router.put("/:id", async function (req, res, next) {
   try {
-    res.json(await stores.update(req.params.id, req.body));
+    res.json(await stores.updateStore(req.params.id, req.body));
   } catch (err) {
     console.error(`Error while updating store`, err.message);
     next(err);
