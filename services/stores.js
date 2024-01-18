@@ -7,17 +7,45 @@ const tableAttributes = ['lat','lng','type','name','description','address','owne
 
 async function getMultiple(page = 1) {
   const offset = helper.getOffset(page, config.listPerPage);
-  const query = `SELECT * FROM ${table} LIMIT ${offset},${config.listPerPage}`
-  
-  const rows = await db.query(
-    query
-  );
-  
-  const data = helper.emptyOrRows(rows);
+  const query = `SELECT * FROM ${table} LIMIT ${offset},${config.listPerPage}`;
+
+  const storeRows = await db.query(query);
+  const stores = helper.emptyOrRows(storeRows);
+
+  // Lặp qua mỗi cửa hàng và lấy thông tin về ingredients và rating
+  for (const store of stores) {
+    // Lấy thông tin về ingredients
+    const ingredientsQuery = `
+      SELECT i.*, si.*
+      FROM store_ingredients si
+      JOIN ingredients i ON si.ingredient_id = i.id
+      WHERE si.store_id = ${store.id}
+    `;
+    
+    const ingredientsRows = await db.query(ingredientsQuery);
+    const ingredients = helper.emptyOrRows(ingredientsRows);
+    
+    // Thêm thông tin về ingredients vào mỗi cửa hàng
+    store.ingredients = ingredients;
+
+    // Lấy thông tin về rating và tính rating trung bình
+    const ratingQuery = `
+      SELECT AVG(rating) AS averageRating
+      FROM store_reviews
+      WHERE store_id = ${store.id}
+    `;
+    
+    const ratingRows = await db.query(ratingQuery);
+    const averageRating = helper.emptyOrRows(ratingRows)[0].averageRating || 0;
+    
+    // Thêm thông tin về rating trung bình vào mỗi cửa hàng
+    store.rating = averageRating;
+  }
+
   const meta = { page };
 
   return {
-    data,
+    stores,
     meta
   };
 }
@@ -81,13 +109,15 @@ async function remove(id) {
   );
 
   let message = "Error in deleting data";
-
+  let success = false;
   if (result.affectedRows) {
     message = "data deleted successfully";
+    success = true;
   }
 
-  return { message };
+  return { message, success };
 }
+
 
 async function getStoreDetail(storeId) {
   try {
@@ -123,7 +153,7 @@ async function getStoreDetail(storeId) {
 
     // Truy vấn để lấy thông tin về các đánh giá
     const reviewsQuery = `
-      SELECT store_reviews.*, users.first_name, users.last_name
+      SELECT store_reviews.*, users.first_name, users.last_name, users.avatar
       FROM store_reviews
       INNER JOIN users ON store_reviews.user_id = users.id
       WHERE store_reviews.store_id = ${storeId}
@@ -136,8 +166,8 @@ async function getStoreDetail(storeId) {
       created_at: review.created_at,
       user: {
         id: review.user_id,
-        first_name: review.first_name,
-        last_name: review.last_name
+        name: review.first_name + ' ' + review.last_name,
+        avatar: review.avatar
       }
     }));
 
@@ -194,7 +224,7 @@ async function getAllStores() {
       address: store.address,
       created_at: store.created_at,
       updated_at: store.updated_at,
-      avgRating: Number(store.avgRating).toFixed(1) || 0,
+      rating: Number(store.avgRating).toFixed(1) || 0,
       reviewsCount: reviewsCountMap.get(store.id) || 0
     }));
 
@@ -242,14 +272,13 @@ async function filterStoresByIngredients(ingredientIds) {
       const ingredientsResult = await db.query(ingredientsQuery);
 
       return {
-        id: store.id,
-        name: store.name,
-        avgRating: store.avgRating || 0,
+        ...store,
+        rating: Number(store.avgRating).toFixed(1) || 0,
         ingredients: ingredientsResult
       };
     }));
 
-    return filteredStores;
+    return {stores: filteredStores};
   } catch (error) {
     throw error;
   }

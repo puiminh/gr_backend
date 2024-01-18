@@ -113,21 +113,18 @@ async function getRecipeDetail(recipeId) {
     const avgRating = ratingResult[0].avgRating || 0;
 
     // Truy vấn để lấy thông tin về tác giả
-    const authorQuery = `SELECT users.first_name, users.last_name FROM users WHERE users.id = ${recipe.author} LIMIT 1`;
+    const authorQuery = `SELECT users.first_name, users.last_name, users.avatar FROM users WHERE users.id = ${recipe.author} LIMIT 1`;
     const authorResult = await db.query(authorQuery);
     const authorName = authorResult.length > 0 ? `${authorResult[0].first_name} ${authorResult[0].last_name}` : '';
 
     // Truy vấn để lấy thông tin về nguyên liệu
     const ingredientsQuery = `
-      SELECT ingredients.*, recipe_ingredients.*
+      SELECT recipe_ingredients.*, ingredients.*
       FROM ingredients
       INNER JOIN recipe_ingredients ON ingredients.id = recipe_ingredients.ingredient_id
       WHERE recipe_ingredients.recipe_id = ${recipeId}
     `;
-    const ingredientsResult = await db.query(ingredientsQuery);
-    const ingredients = ingredientsResult.map(ingredient => ({
-      ...ingredient
-    }));
+    const ingredients = await db.query(ingredientsQuery);
 
     // Truy vấn để lấy thông tin về các bước thực hiện
     const stepsQuery = `SELECT * FROM steps WHERE recipe_id = ${recipeId} ORDER BY \`order\``;
@@ -141,7 +138,7 @@ async function getRecipeDetail(recipeId) {
 
     // Truy vấn để lấy thông tin về các đánh giá
     const reviewsQuery = `
-      SELECT recipe_reviews.*, users.first_name, users.last_name
+      SELECT recipe_reviews.*, users.first_name, users.last_name, users.avatar
       FROM recipe_reviews
       INNER JOIN users ON recipe_reviews.user_id = users.id
       WHERE recipe_reviews.recipe_id = ${recipeId}
@@ -154,8 +151,8 @@ async function getRecipeDetail(recipeId) {
       image: review.image,
       user: {
         id: review.user_id,
-        first_name: review.first_name,
-        last_name: review.last_name
+        name: review.first_name + ' ' + review.last_name,
+        avatar: review.avatar,
       }
     }));
 
@@ -171,7 +168,6 @@ async function getRecipeDetail(recipeId) {
         updated_at: recipe.updated_at,
         author: recipe.author, // Thêm thông tin về tác giả
         rating: Number(avgRating).toFixed(1),
-        author_name: authorName,
         ingredients: ingredients,
         reviews: reviews,
         steps: steps

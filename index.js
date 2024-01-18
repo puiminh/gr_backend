@@ -6,6 +6,10 @@ const recipesRouter = require("./routes/recipes");
 const storesRouter = require("./routes/stores");
 const ingredientsRouter = require("./routes/ingredients");
 const usersRouter = require("./routes/users");
+const recipeReviewsRouter = require("./routes/recipe_reviews");
+const storeReviewsRouter = require("./routes/store_reviews");
+
+
 
 
 
@@ -23,6 +27,9 @@ app.use("/users", usersRouter);
 app.use("/recipes", recipesRouter);
 app.use("/stores", storesRouter);
 app.use("/ingredients", ingredientsRouter);
+app.use("/recipe-reviews", recipeReviewsRouter);
+app.use("/store-reviews", storeReviewsRouter);
+
 
 
 
@@ -35,5 +42,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(port, () => {
-  console.log(`Example app listening at http://localhost:${port}`);
+  console.log(`GR BACKEND is listening at http://localhost:${port}`);
 });

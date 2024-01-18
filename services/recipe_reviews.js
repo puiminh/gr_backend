@@ -2,8 +2,8 @@ const db = require("./db");
 const helper = require("../helper");
 const config = require("../config");
 
-const table = 'ingredients';
-const tableAttributes = ['name','type','image', 'description']
+const table = 'recipe_reviews';
+const tableAttributes = ['recipe_id','user_id','rating', 'comment', 'image']
 
 async function getMultiple(page = 1) {
   const offset = helper.getOffset(page, config.listPerPage);
@@ -35,13 +35,16 @@ async function create(data) {
     query
   );
 
-  let message = "Error in creating data";
+  console.log(query);
 
+  let message = "Error in creating data";
+  let success = false;
   if (result.affectedRows) {
     message = "data created successfully";
+    success = true;
   }
 
-  return { message };
+  return { message, success };
 }
 
 async function get(id) {
@@ -66,12 +69,13 @@ async function update(id, data) {
   );
 
   let message = "Error in updating data";
-
+  let success = false;
   if (result.affectedRows) {
     message = "data updated successfully";
+    success = true;
   }
 
-  return { message };
+  return { message, success };
 }
 
 async function remove(id) {
