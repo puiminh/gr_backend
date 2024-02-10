@@ -70,6 +70,24 @@ async function signin(data) {
   }
 }
 
+async function findUsername(username) {
+  try {
+    // Truy vấn để kiểm tra thông tin đăng nhập
+    const loginQuery = `SELECT * FROM users WHERE username = '${username}'`;
+    const userResult = await db.query(loginQuery);
+
+    if (userResult.length > 0) {
+      const foundUserWithUsername = userResult[0];
+      return { success: true, user: foundUserWithUsername };
+    } else {
+      return { success: false }
+    }
+  } catch (error) {
+    throw error;
+  }
+}
+
+
 async function get(id) {
   const query = `SELECT * FROM ${table} WHERE id=${id}`
   const result = await db.query(
@@ -124,4 +142,5 @@ module.exports = {
   update,
   remove,
   signin,
+  findUsername,
 };
