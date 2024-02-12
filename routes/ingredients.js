@@ -5,7 +5,7 @@ const ingredients = require("../services/ingredients");
 /* GET ingredients. */
 router.get("/", async function (req, res, next) {
   try {
-    res.json(await ingredients.getMultiple(req.query.page));
+    res.json(await ingredients.getAll(req.query.page));
   } catch (err) {
     console.error(`Error while getting ingredients `, err.message);
     next(err);

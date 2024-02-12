@@ -5,7 +5,7 @@ const stores = require("../services/stores");
 /* GET stores. */
 router.get("/", async function (req, res, next) {
   try {
-    res.json(await stores.getMultiple(req.query.page));
+    res.json(await stores.getAll(req.query.page));
   } catch (err) {
     console.error(`Error while getting stores `, err.message);
     next(err);

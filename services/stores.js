@@ -42,7 +42,70 @@ async function getMultiple(page = 1) {
     store.rating = averageRating;
   }
 
-  const meta = { page };
+  // Truy vấn để đếm tổng số lượng bản ghi
+  const countQuery = `SELECT COUNT(*) AS total FROM ${table}`;
+  const countRows = await db.query(countQuery);
+  const totalCount = countRows[0].total;
+
+  // Tính toán số lượng trang
+  const totalPages = Math.ceil(totalCount / config.listPerPage);
+
+  // Thông tin về trang hiện tại và tổng số trang
+  const meta = { currentPage: page, totalPages };
+
+  return {
+    stores,
+    meta
+  };
+}
+
+async function getAll(page = 1) {
+  const offset = helper.getOffset(page, config.listPerPage);
+  const query = `SELECT * FROM ${table} LIMIT ${offset},${config.listPerPage}`;
+
+  const storeRows = await db.query(query);
+  const stores = helper.emptyOrRows(storeRows);
+
+  // Lặp qua mỗi cửa hàng và lấy thông tin về ingredients và rating
+  for (const store of stores) {
+    // Lấy thông tin về ingredients
+    const ingredientsQuery = `
+      SELECT i.*, si.*
+      FROM store_ingredients si
+      JOIN ingredients i ON si.ingredient_id = i.id
+      WHERE si.store_id = ${store.id}
+    `;
+    
+    const ingredientsRows = await db.query(ingredientsQuery);
+    const ingredients = helper.emptyOrRows(ingredientsRows);
+    
+    // Thêm thông tin về ingredients vào mỗi cửa hàng
+    store.ingredients = ingredients;
+
+    // Lấy thông tin về rating và tính rating trung bình
+    const ratingQuery = `
+      SELECT AVG(rating) AS averageRating
+      FROM store_reviews
+      WHERE store_id = ${store.id}
+    `;
+    
+    const ratingRows = await db.query(ratingQuery);
+    const averageRating = helper.emptyOrRows(ratingRows)[0].averageRating || 0;
+    
+    // Thêm thông tin về rating trung bình vào mỗi cửa hàng
+    store.rating = averageRating;
+  }
+
+  // Truy vấn để đếm tổng số lượng bản ghi
+  const countQuery = `SELECT COUNT(*) AS total FROM ${table}`;
+  const countRows = await db.query(countQuery);
+  const totalCount = countRows[0].total;
+
+  // Tính toán số lượng trang
+  const totalPages = Math.ceil(totalCount / config.listPerPage);
+
+  // Thông tin về trang hiện tại và tổng số trang
+  const meta = { currentPage: page, totalPages };
 
   return {
     stores,
@@ -383,6 +446,7 @@ async function updateStore(storeId, data) {
 module.exports = {
   getMultiple,
   get,
+  getAll,
   create,
   createStore,
   update,

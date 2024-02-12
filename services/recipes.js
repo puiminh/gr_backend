@@ -20,7 +20,17 @@ async function getMultiple(page = 1) {
   const rows = await db.query(query);
   
   const data = helper.emptyOrRows(rows);
-  const meta = { page };
+
+  // Truy vấn để đếm tổng số lượng bản ghi
+  const countQuery = `SELECT COUNT(*) AS total FROM ${table}`;
+  const countRows = await db.query(countQuery);
+  const totalCount = countRows[0].total;
+
+  // Tính toán số lượng trang
+  const totalPages = Math.ceil(totalCount / config.listPerPage);
+
+  // Thông tin về trang hiện tại và tổng số trang
+  const meta = { currentPage: page, totalPages };
 
   return {
     recipes: data,

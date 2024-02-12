@@ -22,6 +22,19 @@ async function getMultiple(page = 1) {
   };
 }
 
+async function getAll() {
+  const query = `SELECT * FROM ${table}`
+  
+  const rows = await db.query(
+    query
+  );
+  
+  const ingredients = helper.emptyOrRows(rows);
+  return {
+    ingredients,
+  };
+}
+
 async function create(data) {
   const attributes = tableAttributes;
   const attributeNames = attributes.join(', ');
@@ -97,6 +110,7 @@ async function remove(id) {
 
 module.exports = {
   getMultiple,
+  getAll,
   get,
   create,
   update,

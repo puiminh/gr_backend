@@ -8,6 +8,6 @@ const config = {
     connectTimeout: 60000,
     multipleStatements: true
   },
-  listPerPage: 100
+  listPerPage: 12
 };
 module.exports = config;
