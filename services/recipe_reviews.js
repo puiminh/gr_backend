@@ -3,7 +3,7 @@ const helper = require("../helper");
 const config = require("../config");
 
 const table = 'recipe_reviews';
-const tableAttributes = ['recipe_id','user_id','rating', 'comment', 'image']
+const tableAttributes = ['recipe_id','user_id','rating', 'comment']
 
 async function getMultiple(page = 1) {
   const offset = helper.getOffset(page, config.listPerPage);

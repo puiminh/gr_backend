@@ -3,7 +3,7 @@ const helper = require("../helper");
 const config = require("../config");
 
 const table = 'ingredients';
-const tableAttributes = ['name','type','image', 'description']
+const tableAttributes = ['name','type','image', 'unit']
 
 async function getMultiple(page = 1) {
   const offset = helper.getOffset(page, config.listPerPage);
@@ -13,11 +13,11 @@ async function getMultiple(page = 1) {
     query
   );
   
-  const data = helper.emptyOrRows(rows);
+  const ingredients = helper.emptyOrRows(rows);
   const meta = { page };
 
   return {
-    data,
+    ingredients,
     meta
   };
 }
@@ -34,14 +34,17 @@ async function create(data) {
   const result = await db.query(
     query
   );
+  
 
   let message = "Error in creating data";
+  let success = false;
 
   if (result.affectedRows) {
     message = "data created successfully";
+    success = true;
   }
 
-  return { message };
+  return { message, success };
 }
 
 async function get(id) {
@@ -66,12 +69,14 @@ async function update(id, data) {
   );
 
   let message = "Error in updating data";
+  let success = false;
 
   if (result.affectedRows) {
     message = "data updated successfully";
+    success = true;
   }
 
-  return { message };
+  return { message, success };
 }
 
 async function remove(id) {
